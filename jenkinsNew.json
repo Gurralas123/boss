@@ -1,0 +1,495 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+    "Description" : "AWS CloudFormation maven,pmd,jdk,dbunit,jmeter,jenkins,cucumber,checkstyle creation template.",
+
+    "Parameters" : {
+
+	"Region": {
+            "Description": "Name of an existing Amazon EC2 key pair to enable SSH access ( git works over SSH )",
+            "Type": "String",
+	    "Default": "us-west-2",
+            "AllowedValues": [ "us-east-1", "us-west-2", "us-west-1", "us-west-1", "eu-central-1", "ap-northeast-1", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "sa-east-1", "cn-north-1"]
+	},
+
+	"NetworkStackName": {
+      	    "Description": "Name of an active CloudFormation stack that contains the networking resources, such as the subnet and security group, that will be used in this   stack.",
+      	    "Type": "String",
+      	    "MinLength": 1,
+      	    "MaxLength": 255,
+      	    "AllowedPattern": "^[a-zA-Z][-a-zA-Z0-9]*$",
+      	    "Default": "BaseStack"
+    },
+	"KeyPairName": {
+            "Description": "Name of an existing Amazon EC2 key pair to enable SSH or RDP access to the instances.",
+           "Type": "AWS::EC2::KeyPair::KeyName",
+			"ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+	},
+
+	"InstanceType": {
+            "Description": "Amazon EC2 instance type.",
+            "Type": "String",
+            "Default": "t2.small",
+	    "AllowedValues" : [ "t1.micro", "t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "m3.medium", "m3.large", "m3.xlarge", "m3.2xlarge", "m4.large", "m4.xlarge", "m4.2xlarge", "m4.4xlarge", "m4.10xlarge", "c1.medium", "c1.xlarge", "c3.large", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge", "c4.large", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge", "g2.2xlarge", "g2.8xlarge", "r3.large", "r3.xlarge", "r3.2xlarge", "r3.4xlarge", "r3.8xlarge", "i2.xlarge", "i2.2xlarge", "i2.4xlarge", "i2.8xlarge", "d2.xlarge", "d2.2xlarge", "d2.4xlarge", "d2.8xlarge", "hi1.4xlarge", "hs1.8xlarge", "cr1.8xlarge", "cc2.8xlarge", "cg1.4xlarge"]
+,
+            "ConstraintDescription": "Must be a valid Amazon EC2 instance type."
+        },
+	"SSHLocation": {
+            "Description": "The IP address range that can be used to connect using SSH or RDP to the Amazon EC2 instances.",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+	    "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "Must be a valid IP CIDR range of the form x.x.x.x/x."
+	}
+    },	
+    "Mappings": {
+	"AWSInstanceType2Arch" : {
+     	   "t1.micro"    : { "Arch" : "PV64"   },
+      	   "t2.nano"     : { "Arch" : "HVM64"  },
+      	   "t2.micro"    : { "Arch" : "HVM64"  },
+      	   "t2.small"    : { "Arch" : "HVM64"  },
+      	   "t2.medium"   : { "Arch" : "HVM64"  },
+       	   "t2.large"    : { "Arch" : "HVM64"  },
+      	   "m1.small"    : { "Arch" : "PV64"   },
+      	   "m1.medium"   : { "Arch" : "PV64"   },
+      	   "m1.large"    : { "Arch" : "PV64"   },
+      	   "m1.xlarge"   : { "Arch" : "PV64"   },
+      	   "m2.xlarge"   : { "Arch" : "PV64"   },
+       	   "m2.2xlarge"  : { "Arch" : "PV64"   },
+    	   "m2.4xlarge"  : { "Arch" : "PV64"   },
+      	   "m3.medium"   : { "Arch" : "HVM64"  },
+      	   "m3.large"    : { "Arch" : "HVM64"  },
+           "m3.xlarge"   : { "Arch" : "HVM64"  },
+      	   "m3.2xlarge"  : { "Arch" : "HVM64"  },
+           "m4.large"    : { "Arch" : "HVM64"  },
+      	   "m4.xlarge"   : { "Arch" : "HVM64"  },
+      	   "m4.2xlarge"  : { "Arch" : "HVM64"  },
+      	   "m4.4xlarge"  : { "Arch" : "HVM64"  },
+      	   "m4.10xlarge" : { "Arch" : "HVM64"  },
+      	   "c1.medium"   : { "Arch" : "PV64"   },
+      	   "c1.xlarge"   : { "Arch" : "PV64"   },
+      	   "c3.large"    : { "Arch" : "HVM64"  },
+      	   "c3.xlarge"   : { "Arch" : "HVM64"  },
+      	   "c3.2xlarge"  : { "Arch" : "HVM64"  },
+      	   "c3.4xlarge"  : { "Arch" : "HVM64"  },
+      	   "c3.8xlarge"  : { "Arch" : "HVM64"  },
+      	   "c4.large"    : { "Arch" : "HVM64"  },
+      	   "c4.xlarge"   : { "Arch" : "HVM64"  },
+      	   "c4.2xlarge"  : { "Arch" : "HVM64"  },
+      	   "c4.4xlarge"  : { "Arch" : "HVM64"  },
+      	   "c4.8xlarge"  : { "Arch" : "HVM64"  },
+      	   "g2.2xlarge"  : { "Arch" : "HVMG2"  },
+      	   "g2.8xlarge"  : { "Arch" : "HVMG2"  },
+      	   "r3.large"    : { "Arch" : "HVM64"  },
+      	   "r3.xlarge"   : { "Arch" : "HVM64"  },
+      	   "r3.2xlarge"  : { "Arch" : "HVM64"  },
+      	   "r3.4xlarge"  : { "Arch" : "HVM64"  },
+      	   "r3.8xlarge"  : { "Arch" : "HVM64"  },
+           "i2.xlarge"   : { "Arch" : "HVM64"  },
+      	   "i2.2xlarge"  : { "Arch" : "HVM64"  },
+      	   "i2.4xlarge"  : { "Arch" : "HVM64"  },
+      	   "i2.8xlarge"  : { "Arch" : "HVM64"  },
+      	   "d2.xlarge"   : { "Arch" : "HVM64"  },
+      	   "d2.2xlarge"  : { "Arch" : "HVM64"  },
+      	   "d2.4xlarge"  : { "Arch" : "HVM64"  },
+      	   "d2.8xlarge"  : { "Arch" : "HVM64"  },
+      	   "hi1.4xlarge" : { "Arch" : "HVM64"  },
+      	   "hs1.8xlarge" : { "Arch" : "HVM64"  },
+      	   "cr1.8xlarge" : { "Arch" : "HVM64"  },
+      	   "cc2.8xlarge" : { "Arch" : "HVM64"  }
+    },
+
+	 "AWSRegionArch2AMI" : {
+      	  "us-east-1"        : {"PV64" : "ami-22111148", "HVM64" : "ami-08111162", "HVMG2" : "ami-ebcec381"},
+      	  "us-west-2"        : {"PV64" : "ami-792bc219", "HVM64" : "ami-c229c0a2", "HVMG2" : "ami-0f28c06f"},
+      	  "us-west-1"        : {"PV64" : "ami-0e087a6e", "HVM64" : "ami-1b0f7d7b", "HVMG2" : "ami-ab9defcb"},
+          "eu-west-1"        : {"PV64" : "ami-a5368cd6", "HVM64" : "ami-31328842", "HVMG2" : "ami-d1d652a2"},
+      	  "eu-central-1"     : {"PV64" : "ami-2bde3944", "HVM64" : "ami-e2df388d", "HVMG2" : "ami-5240a73d"},
+      	  "ap-northeast-1"   : {"PV64" : "ami-37020959", "HVM64" : "ami-f80e0596", "HVMG2" : "ami-34a9a35a"},
+      	  "ap-northeast-2"   : {"PV64" : "NOT_SUPPORTED", "HVM64" : "ami-6598510b", "HVMG2" : "NOT_SUPPORTED"},
+      	  "ap-southeast-1"   : {"PV64" : "ami-ff0cc79c", "HVM64" : "ami-e90dc68a", "HVMG2" : "ami-6f6ca70c"},
+      	  "ap-southeast-2"   : {"PV64" : "ami-f5210196", "HVM64" : "ami-f2210191", "HVMG2" : "ami-88c1e1eb"},
+      	  "sa-east-1"        : {"PV64" : "ami-661e930a", "HVM64" : "ami-1e159872", "HVMG2" : "NOT_SUPPORTED"},
+      	  "cn-north-1"       : {"PV64" : "ami-08ef2465", "HVM64" : "ami-49e22924", "HVMG2" : "NOT_SUPPORTED"}
+    },
+
+	"OS2SSHPort": {
+            "Linux": {
+		"SSHPort": "22"
+            }
+	}
+    },
+
+    "Resources" : { 
+	 "InstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+       "Roles": [ {
+               "Ref": "SESAccess"
+            } ]
+      }
+    },
+
+	"SG" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+		"VpcId" :  { "Fn::GetAtt": [
+           		 "NetworkInfo",
+            		 "VPCId"
+          ] },
+		"GroupDescription" : "Enable 80 and 8080",
+		"SecurityGroupIngress" : [
+		    {"IpProtocol" : "tcp", "FromPort" : "8080", "ToPort" : "8080", "CidrIp" : "0.0.0.0/0"},
+		    { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0"},
+		    { "IpProtocol" : "ICMP", "FromPort" : "-1", "ToPort" : "-1", "CidrIp" : "0.0.0.0/0"},
+		    {"IpProtocol" : "tcp", "FromPort" : "8081", "ToPort" : "8081", "CidrIp" : "0.0.0.0/0"},
+		    {"IpProtocol" : "tcp", "FromPort" : "0", "ToPort" : "65535", "CidrIp" : "0.0.0.0/0"},
+		    {"IpProtocol" : "tcp", "FromPort" : "9000", "ToPort" : "9000", "CidrIp" : "0.0.0.0/0"}
+		]
+            }
+	},
+	"OnlySSH" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+		"VpcId" : { "Fn::GetAtt": [
+           		 "NetworkInfo",
+            		 "VPCId"
+          ] },
+		"GroupDescription" : "Enable SSH access via port 22",
+		"SecurityGroupIngress" : [ 
+		    {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"} } 
+		]
+            }
+	},
+	
+	
+	"Instance2": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+			 "InstanceType" : { "Ref" : "InstanceType" },
+		"IamInstanceProfile": {
+          "Ref": "InstanceProfile"
+        },
+		 "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] 
+				},
+		"InstanceType": {
+                    "Ref": "InstanceType"
+		},
+		"NetworkInterfaces" : [{
+          	    "GroupSet"                 : [{ "Ref" : "SG" }],
+          	    "AssociatePublicIpAddress" : "true",
+          	    "DeviceIndex"              : "0",
+          	    "DeleteOnTermination"      : "true",
+				"PrivateIpAddress"		   : "10.0.1.17",
+          	    "SubnetId"                 : {  "Fn::GetAtt": [
+               				 "NetworkInfo",
+                			 "PublicSubnet"
+              ] }
+        	}],
+		"UserData": {
+                    "Fn::Base64": {
+			"Fn::Join":["", [
+		  	    "#!/bin/bash -ex \n",
+				"mkdir -p ~/.aws \n",
+				"echo '[default]' > ~/.aws/config \n",
+				"echo 'output = json' >> ~/.aws/config \n",
+				"echo 'region = '",{"Ref" : "Region"}," >> ~/.aws/config \n",
+				
+				"timestart=$(date +%s) \n",
+				"touch /home/ec2-user/value.txt \n",
+		
+		"chmod 777 /home/ec2-user/value.txt \n",
+			    "yum update -y \n",
+			    "sudo curl -s https://s3-us-west-2.amazonaws.com/cicdpoc/maven.sh | bash -ex \n",
+		
+			   "cd /home/ec2-user \n",
+			   "wget https://s3-us-west-2.amazonaws.com/cicdpoc/pmd-bin-5.4.1.zip \n",
+			   "unzip -q pmd-bin-5.4.1.zip \n",
+			   
+			   "wget https://s3-us-west-2.amazonaws.com/cicdpoc/jdk-8u60-linux-x64.rpm \n",
+			   "yum localinstall jdk-8u60-linux-x64.rpm -y \n",
+			   "chmod a+rwx /etc/profile \n",
+			   "echo \"export JAVA_HOME=/home/ec2-user\" >> /etc/profile \n",
+		       	   "echo \"export PATH=$PATH:/usr/lib/jvm/jre/bin\" >> /etc/profile \n",
+			   "source /etc/profile \n",
+			   "cd /home/ec2-user \n",
+			   "wget https://s3-us-west-2.amazonaws.com/cicdpoc/dbunit-2.4.9.jar \n",
+			   "jar -xf /home/ec2-user/dbunit-2.4.9.jar \n",
+				
+			    "mkdir jMeter \n",
+			   "cd jMeter \n",
+			   "wget https://s3-us-west-2.amazonaws.com/cicdpoc/apache-jmeter-2.13.tgz \n",
+			   "tar -xzvf apache-jmeter-2.13.tgz \n",
+			   "cd apache-jmeter-2.13/bin \n",
+			   "chmod 777 jmeter.sh \n",
+			   
+			     
+				 
+			   "wget -O /usr/lib/jenkins.war https://s3.amazonaws.com/jenkins2x/jenkins.war \n",
+                 	   "java -Djenkins.install.runSetupWizard=false -jar /usr/lib/jenkins.war &>/dev/null & \n",
+					   "sleep 1m \n",
+					   "sudo curl -s https://s3-us-west-2.amazonaws.com/cicdpoc/firefox.sh | bash -ex \n",
+      
+			   "sudo yum install git-all -y \n",
+                	   "PRIVATE_IP=`curl -s http://169.254.169.254/latest/meta-data/local-ipv4` \n",
+                        "cp /root/.jenkins/war/WEB-INF/jenkins-cli.jar /tmp/jenkins-cli.jar \n",
+                	   "chmod a+rwx /tmp/jenkins-cli.jar \n",
+                       "wget https://s3.amazonaws.com/sruthi-test/backuplatest.zip \n",
+					   "wget https://s3-us-west-2.amazonaws.com/cicdpoc/github-plugin-configuration.xml \n",
+					   "cp backuplatest.zip /root/.jenkins/ \n",
+					   "cp -rv github-plugin-configuration.xml /root/.jenkins/ \n",
+					   "cd /root/.jenkins/ \n",
+					   "unzip -o backuplatest.zip \n",
+					    "wget https://s3.amazonaws.com/jenkins2x/backup.zip \n",
+					     "unzip -o backup.zip \n",
+					  
+					   "rm -rfv backuplatest.zip \n",
+					   "rm -rfv backup.zip \n",
+					   "cd /tmp/ \n",
+					   "wget https://s3-us-west-2.amazonaws.com/cicdpoc/latestjobs.zip \n",
+					   "unzip -d /tmp/job/ latestjobs.zip \n",
+					   "wget https://s3-us-west-2.amazonaws.com/aws-privatebucket/sonarconfigupdated.xml   \n",
+					   "wget https://s3-us-west-2.amazonaws.com/aws-privatebucket/buildconfigupdated.xml  \n",
+					   "wget https://s3-us-west-2.amazonaws.com/aws-privatebucket/openemrconfigupdated.xml   \n",
+					   "wget https://s3-us-west-2.amazonaws.com/aws-privatebucket/seleniumconfigupdated.xml  \n",
+					   "wget  https://s3-us-west-2.amazonaws.com/aws-privatebucket/ZAP_jobconfig.xml  \n",
+					   
+					   
+					   "wget https://s3-us-west-2.amazonaws.com/aws-privatebucket/Shoppingcartconfig.xml \n",
+					   "wget https://s3-us-west-2.amazonaws.com/java-demo-bucket/ShoppingCart_CodeQualityConfig.xml \n",
+					   "wget https://s3-us-west-2.amazonaws.com/java-demo-bucket/ShoppingCart_DeployConfig.xml \n",
+					   "wget https://s3-us-west-2.amazonaws.com/java-demo-bucket/ShoppingCart_TestingConfig.xml \n",
+					   "wget https://s3-us-west-2.amazonaws.com/aws-privatebucket/petcliniconfig.xml \n",
+					   "wget https://s3-us-west-2.amazonaws.com/java-demo-bucket/Petclinic_SeleniumConfig.xml \n",
+					   
+					   
+					   
+					   
+					   
+			   "wget -O /home/ec2-user/rundeckip.txt https://s3-us-west-2.amazonaws.com/cicdpoc/rundeck_ip.txt \n",
+			   "str=`cat /home/ec2-user/rundeckip.txt` \n",
+			   "echo $str \n",
+			   
+			   
+
+			 "sed -i s/34.193.28.233/10.0.2.19/g /root/.jenkins/org.jenkinsci.plugins.rundeck.RundeckNotifier.xml \n",
+
+			  "sed -i s/34.193.39.185/10.0.2.18/g /root/.jenkins/quality.gates.jenkins.plugin.GlobalConfig.xml \n",
+
+			   "sed -i s/34.193.39.185/10.0.2.18/g /root/.jenkins/hudson.plugins.sonar.SonarGlobalConfiguration.xml \n",
+			   
+			   "sed -i s/54.226.16.54/$PRIVATE_IP/g /root/.jenkins/jenkins.model.JenkinsLocationConfiguration.xml \n",
+			   
+               "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ install-plugin Git pmd checkstyle maven-plugin \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ install-plugin Rundeck github postbuildscript xvfb Sonar quality-gates \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ install-plugin build-pipeline-plugin copyartifact parameterized-trigger promoted-builds promoted-builds-simple testng-plugin \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ safe-restart \n",
+			   "sleep 100 \n",
+			   
+			    "java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ login --username rajdsaha --password rajdeep833 \n",
+			    "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job Build < /tmp/buildconfigupdated.xml \n",
+				"java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job ZAP < /tmp/ZAP_jobconfig.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job openemr < /tmp/openemrconfigupdated.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job openemrdeploy < /tmp/job/openemrdeployjob.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job openemrsonar < /tmp/sonarconfigupdated.xml \n",
+			    "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job openemr_selenium < /tmp/seleniumconfigupdated.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job openemrterminate < /tmp/job/openemrterminatejob.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job ShoppingCart_Build < /tmp/Shoppingcartconfig.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job ShoppingCart_CodeQuality < /tmp/ShoppingCart_CodeQualityConfig.xml \n",
+			   "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job ShoppingCart_Deploy < /tmp/ShoppingCart_DeployConfig.xml \n",
+			    "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job ShoppingCart_Testing < /tmp/ShoppingCart_TestingConfig.xml \n",
+				
+				 "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job Petclinic < /tmp/petcliniconfig.xml\n",
+				  "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ create-job Petclinic_Selenium < /tmp/Petclinic_SeleniumConfig.xml \n",
+				
+				
+				
+			   "rm -rf /root/.jenkins/users \n",
+			   "wget -O /root/.jenkins/users.tar.gz https://s3-us-west-2.amazonaws.com/java-demo-bucket/users.tar.gz \n",
+			    "wget -O /root/.jenkins/jenkins.mvn.GlobalMavenConfig.xml https://s3-us-west-2.amazonaws.com/java-demo-bucket/jenkins.mvn.GlobalMavenConfig.xml \n",
+			   "chmod 777 /root/.jenkins/users.tar.gz \n",
+		       "tar -xvzf /root/.jenkins/users.tar.gz -C  /root/.jenkins/ \n",
+			   "rm -rf /root/.jenkins/config.xml \n",
+			   "wget -O /root/.jenkins/config.xml https://s3-us-west-2.amazonaws.com/java-demo-bucket/config.xml \n",
+			   
+			   
+			   "sleep 60 \n",
+			   
+			    "cd /root/.jenkins/jobs/Build/promotions \n",
+			    "mkdir openemrdeploy \n",
+			    "cd openemrdeploy/ \n",
+			    "wget https://s3-us-west-2.amazonaws.com/jenkinsauto/config.xml \n",
+			    "wget https://s3-us-west-2.amazonaws.com/jenkinsauto/nextBuildNumber \n",
+			    "cd /home/ec2-user \n",			  
+			    "wget https://github.com/liquibase/liquibase/releases/download/liquibase-parent-3.4.2/liquibase-3.4.2-bin.zip \n",
+				"unzip liquibase-3.4.2-bin.zip\n",
+				"yum install mysql-server -y\n", 
+				"sudo /sbin/chkconfig --levels 235 mysqld on\n", 
+				"sudo service mysqld start\n", 
+				"wget http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.30.tar.gz\n",
+				"tar zxvf mysql-connector-java-5.1.30.tar.gz\n",
+
+
+			  "java -jar /tmp/jenkins-cli.jar -s http://$PRIVATE_IP:8080/ safe-restart \n",
+			  "sleep 100 \n"
+			  
+			 
+				
+		   ]
+		   ]
+                    }
+		},
+		"KeyName": {
+                    "Ref": "KeyPairName"
+		},
+		"Tags":[ { "Key" : "Name", "Value" : { "Fn::Join" : [ "", ["Instance_",{ "Ref" : "AWS::StackName"}]] }}
+		       ]
+            }
+	},
+
+
+	"NetworkInfo": {
+      	"Type": "Custom::NetworkInfo",
+      	"Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LookupStackOutputs",
+            "Arn"
+          ]
+        },
+        "StackName": {
+          "Ref": "NetworkStackName"
+        }
+      }
+    },"LookupStackOutputs": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": { "Fn::GetAtt" : ["LambdaExecutionRole", "Arn"] },
+        "Code": {
+          "ZipFile": {
+            "Fn::Join": [
+              "\n",
+              [
+                "var response = require('cfn-response');",
+                "exports.handler = function(event, context) {",
+                "    console.log('REQUEST RECEIVED:\\n', JSON.stringify(event));",
+                "    if (event.RequestType == 'Delete') {",
+                "        response.send(event, context, response.SUCCESS);",
+                "        return;",
+                "    }",
+                "    var stackName = event.ResourceProperties.StackName;",
+                "    var responseData = {};",
+                "    if (stackName) {",
+                "        var aws = require('aws-sdk');",
+                "        var cfn = new aws.CloudFormation();",
+                "        cfn.describeStacks({StackName: stackName}, function(err, data) {",
+                "            if (err) {",
+                "                responseData = {Error: 'DescribeStacks call failed'};",
+                "                console.log(responseData.Error + ':\\n', err);",
+                "                response.send(event, context, response.FAILED, responseData);",
+                "            }",
+                "            else {",
+                "                data.Stacks[0].Outputs.forEach(function(output) {",
+                "                    responseData[output.OutputKey] = output.OutputValue;",
+                "                });",
+                "                response.send(event, context, response.SUCCESS, responseData);",
+                "            }",
+                "        });",
+                "    } else {",
+                "        responseData = {Error: 'Stack name not specified'};",
+                "        console.log(responseData.Error);",
+                "        response.send(event, context, response.FAILED, responseData);",
+                "    }",
+                "};"
+              ]
+            ]
+          }
+        },
+        "Runtime": "nodejs4.3",
+        "Timeout": "30"
+      }
+    },
+	"LambdaExecutionRole": {
+         "Type": "AWS::IAM::Role",
+         "Properties": {
+            "AssumeRolePolicyDocument": {
+               "Version" : "2012-10-17",
+               "Statement": [ {
+                  "Effect": "Allow",
+                  "Principal": {
+                     "Service": [ "lambda.amazonaws.com" ]
+                  },
+                  "Action": [ "sts:AssumeRole" ]
+               } ]
+            },
+            "Path": "/",
+            "Policies": [ {
+               "PolicyName": "AWSLambdaFullAccess",
+               "PolicyDocument": {
+                  "Version" : "2012-10-17",
+				  "Statement": [ {
+                     "Effect": "Allow",
+                     "Action": [
+				"lambda:*",
+                "cloudformation:DescribeStacks",
+                "cloudformation:DescribeStackEvents",
+                "cloudformation:DescribeStackResource",
+                "cloudformation:DescribeStackResources"
+            ],
+			"Resource": "*"
+               } ]
+            }
+      }]
+   }
+},
+	"SESAccess": {
+         "Type": "AWS::IAM::Role",
+         "Properties": {
+            "AssumeRolePolicyDocument": {
+               "Version" : "2012-10-17",
+               "Statement": [ {
+                  "Effect": "Allow",
+                  "Principal": {
+                     "Service": [ "ec2.amazonaws.com" ]
+                  },
+                  "Action": [ "sts:AssumeRole" ]
+               } ]
+            },
+            "Path": "/",
+            "Policies": [ {
+               "PolicyName": "AmazonSESAccess",
+               "PolicyDocument": {
+                  "Version" : "2012-10-17",
+                  "Statement": [ {
+                     "Effect": "Allow",
+                     "Action": "ses:*",
+                     "Resource": "*"
+                  } ]
+               }
+               } ]
+            }
+      }
+    },
+    "Outputs" : {
+	"InstanceIdInstance2" : {
+            "Description" : "InstanceId of the newly created EC2 instance",
+            "Value" : { "Ref" : "Instance2" }
+	},
+	"AZInstance2" : {
+	    "Description" : "Availability Zone of the newly created EC2 instance",
+	    "Value" : { "Fn::GetAtt" : [ "Instance2", "AvailabilityZone" ] }
+	},
+	"PublicIPInstance2" : {
+	    "Description" : "Private IP address of the newly created EC2 instance",
+	    "Value" : { "Fn::GetAtt" : [ "Instance2", "PrivateIp" ] }
+	},
+	"JenkinsURL" : {
+        "Description" : "URL to access Jenkins",
+        "Value" : { "Fn::Join" : [ "",[ {"Fn::GetAtt": ["Instance2", "PrivateIp" ]},":8080","/"]]}
+        }
+}
+}
